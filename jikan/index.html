@@ -16,7 +16,7 @@ h1{font-size:20px;margin:6px 0}h2{font-size:18px;margin:8px 0}
 button{font:inherit;min-height:48px;border:0;border-radius:12px;padding:8px 14px;background:#e4e4e0;color:#222}
 .big-b{display:block;width:100%;min-height:64px;font-size:19px;font-weight:700;margin:8px 0;color:#fff;text-align:left;padding:10px 16px}
 .t-span{background:#2b6cb0}.t-fixed{background:#2f855a}.t-count{background:#8a5a0a}.t-note{background:#6b46c1}
-.big-b small{display:block;font-weight:400;font-size:15px}
+.rw{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:56px;background:#fff;border-radius:12px;padding:4px 10px;margin:8px 0;box-shadow:0 1px 2px #0002}.rw.run{background:#fde8e4;border:2px solid #c0392b}.rw .nm{font-size:18px;font-weight:700;min-width:0;overflow-wrap:anywhere}.rt{display:flex;align-items:center;gap:10px;flex:none;font-size:18px;font-variant-numeric:tabular-nums}.pl{min-width:48px;min-height:48px;border-radius:24px;background:#2b6cb0;color:#fff;font-size:20px;padding:0}.rw.run .pl{background:#c0392b}.pl.pls{min-width:64px;border-radius:24px;font-size:18px}.td{display:flex;align-items:center;gap:6px;min-height:48px;border-bottom:1px solid #eee}.td.dn span{opacity:.45;text-decoration:line-through}.td .ck{min-width:44px;min-height:44px;padding:0;font-size:22px;background:transparent}.td span{flex:1;overflow-wrap:anywhere;text-align:left}.tdm{flex:1;display:flex;align-items:center;gap:6px;min-height:48px;background:transparent;text-align:left;padding:0 4px}.tdm .ck{font-size:22px;min-width:36px;font-weight:400}.x{min-width:44px;min-height:44px;padding:0;background:transparent;font-size:20px;color:#555}
 .big-b.run{background:#c0392b}
 .sm{min-height:44px}
 .makebar{position:fixed;left:0;right:0;bottom:72px;max-width:480px;margin:0 auto;background:#fff;border-top:2px solid #222;padding:8px 12px;box-shadow:0 -2px 6px #0002}
@@ -36,19 +36,29 @@ label{display:block;margin:8px 0;font-weight:600}
 </style></head><body><div id="app"></div>
 <script>
 /* ===== 計算（純粋関数）ここから ===== */
-var TYPES={span:'使った時間をはかる',fixed:'決めた時間をはかる',count:'回数を数える',note:'できたことを書く'};
-var EXAMPLE={span:'副業',fixed:'勉強',count:'解いた問題',note:'できたこと'};
+var TYPES={span:'時間',fixed:'タイマー',count:'回数',note:'メモ'};
+var TYDESC={span:'押して始めて、押して止める',fixed:'25分など。終えた回数が残る',count:'押すたびに＋1'};
+var EXAMPLE={span:'仕事',fixed:'勉強',count:'解いた問題',note:'できたこと'};
 function uid(){return Math.random().toString(36).slice(2,9);}
 function p2(n){return (n<10?'0':'')+n;}
 function dayStart(ms){var d=new Date(ms);return new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();}
 function dayEnd(ms){var d=new Date(ms);return new Date(d.getFullYear(),d.getMonth(),d.getDate()+1).getTime();}
 function ymd(ms){var d=new Date(ms);return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());}
 function fmtHMS(ms){ms=Math.max(0,Math.floor(ms/1000));return p2(Math.floor(ms/3600))+':'+p2(Math.floor(ms%3600/60))+':'+p2(ms%60);}
+function fmtH(ms){var m=Math.floor(Math.max(0,ms)/60000);return Math.floor(m/60)+':'+p2(m%60);}
+function fmtMS(ms){ms=Math.max(0,Math.ceil(ms/1000));return p2(Math.floor(ms/60))+':'+p2(ms%60);}
 function fmtHM(ms){var m=Math.floor(ms/60000),h=Math.floor(m/60);return h>0?h+'時間'+p2(m%60)+'分':m+'分';}
-function newState(){return{v:3,kinds:[{id:'k1',type:'span',name:'副業',hidden:false},{id:'k2',type:'fixed',name:'勉強',minutes:25,hidden:false},{id:'k3',type:'note',name:'できたこと',hidden:false}],entries:[],counts:[],notes:[]};}
+function newState(){return{v:3,kinds:[{id:'k1',type:'span',name:'仕事',hidden:false},{id:'k2',type:'fixed',name:'勉強',minutes:25,hidden:false}],entries:[],counts:[],notes:[],todos:[]};}
+/* やること：{id,text(80字),at,done(済みにした時刻 or null)}。済みにすると、できたこと（notes）に todo=id 付きで入る */
+function addTodo(st,text,now){text=String(text||'').trim().slice(0,80);if(!text)return false;if(!st.todos)st.todos=[];st.todos.push({id:'t'+uid(),text:text,at:now,done:null});return true;}
+function toggleTodo(st,id,now){var t=null;(st.todos||[]).forEach(function(x){if(x.id===id)t=x;});if(!t)return false;
+  if(t.done==null){t.done=now;st.notes.push({id:'n'+uid(),at:now,text:t.text,kind:null,entry:null,todo:id});}
+  else{t.done=null;st.notes=st.notes.filter(function(n){return n.todo!==id;});}return true;}
+function delTodo(st,id){st.todos=(st.todos||[]).filter(function(x){return x.id!==id;});}
+function visibleTodos(st,now){var ds=dayStart(now);return (st.todos||[]).filter(function(t){return t.done==null||t.done>=ds;});}
+function rowLabel(type,name,minutes){name=String(name||'').trim()||'（名前）';return type==='fixed'?name+' '+(parseInt(minutes,10)||'◯')+'分':name;}
 function unitOf(k){return (k&&k.unit)||'回';}
 function cleanUnit(u){u=String(u==null?'':u).trim();return u?u.slice(0,4):'回';}
-function previewLabel(type,name,minutes){name=String(name||'').trim()||'（名前）';if(type==='fixed')return name+'を'+(parseInt(minutes,10)||'◯')+'分始める';if(type==='count')return name+'　＋1';if(type==='note')return name+'を書く';return name+'をはかる';}
 function setMinutes(st,id,m){m=parseInt(m,10);if(!(m>=1&&m<=240))return false;var ok=false;st.kinds.forEach(function(k){if(k.id===id&&k.type==='fixed'){k.minutes=m;ok=true;}});return ok;}
 function setUnit(st,id,u){var ok=false;st.kinds.forEach(function(k){if(k.id===id&&k.type==='count'){k.unit=cleanUnit(u);ok=true;}});return ok;}
 function fixedLens(st,kindId,ds,now){var de=dayEnd(ds),o=[];st.entries.forEach(function(e){if(e.kind===kindId&&e.full&&e.end>=ds&&e.end<de)o.push(Math.round((e.end-e.start)/60000));});return o;}
@@ -75,16 +85,16 @@ function dayTotals(st,ds,now){var de=dayEnd(ds),o={};function g(k){return o[k]||
   st.entries.forEach(function(e){var m=clipMs(e,ds,de,now);if(m>0)g(e.kind).ms+=m;if(e.full&&e.end>=ds&&e.end<de)g(e.kind).times++;});
   st.counts.forEach(function(c){if(c.at>=ds&&c.at<de)g(c.kind).count++;});return o;}
 function daySummary(st,ds,now){var t=dayTotals(st,ds,now),parts=[],ids=Object.keys(t);
-  ids.forEach(function(id){var k=kindOf(st,id),v=t[id];if(k.type==='span'&&v.ms>=60000)parts.push(k.name+fmtHM(v.ms));
-    else if(k.type==='fixed'&&v.ms>=60000)parts.push(k.name+fmtHM(v.ms)+(v.times?'（'+v.times+'回）':''));
-    else if(k.type==='count'&&v.count)parts.push(k.name+v.count+unitOf(k));});
+  ids.forEach(function(id){var k=kindOf(st,id),v=t[id];if(k.type==='span'&&v.ms>=60000)parts.push(k.name+' '+fmtH(v.ms));
+    else if(k.type==='fixed'&&v.ms>=60000)parts.push(k.name+' '+fmtHM(v.ms)+(v.times?'（'+v.times+'回）':''));
+    else if(k.type==='count'&&v.count)parts.push(k.name+' '+v.count+unitOf(k));});
   var n=st.notes.filter(function(x){return x.at>=ds&&x.at<dayEnd(ds);}).length;
-  if(n)parts.push('できたこと'+n+'つ');return parts.length?parts.join('・'):'';}
+  if(n)parts.push('できたこと '+n+'つ');return parts.length?parts.join('・'):'';}
 /* 週：記録ごとに 日数・合計・回数 */
 function weekTotals(st,endDs,now){var o={};for(var i=6;i>=0;i--){var ds=dayStart(dayStart(endDs)-i*86400000+43200000),t=dayTotals(st,ds,now);
   Object.keys(t).forEach(function(k){var v=t[k],a=o[k]||(o[k]={days:0,ms:0,times:0,count:0});if(v.ms>0||v.count>0)a.days++;a.ms+=v.ms;a.times+=v.times;a.count+=v.count;});}return o;}
 /* v2 の状態 {acts,entries,dayNotes,timer} を v3 の形へ写す（v2 は読むだけ） */
-function migrateV2(v2){var st={v:3,kinds:[],entries:[],counts:[],notes:[]},seen={};
+function migrateV2(v2){var st={v:3,kinds:[],entries:[],counts:[],notes:[],todos:[]},seen={};
   (v2.acts||[]).forEach(function(a){st.kinds.push({id:'k'+a.id,type:'span',name:String(a.name||'名前なし'),hidden:false});seen['k'+a.id]=1;});
   st.kinds.push({id:'kn',type:'note',name:'できたこと',hidden:false});
   (v2.entries||[]).forEach(function(e){var kid='k'+e.act;if(!seen[kid]){st.kinds.push({id:kid,type:'span',name:'（消した活動）',hidden:true});seen[kid]=1;}
@@ -96,12 +106,13 @@ function backupText(st,now){return JSON.stringify({app:'jikan_v3',version:3,save
 function sid(x){return String(x==null?'':x).replace(/[^A-Za-z0-9_-]/g,'_').slice(0,40)||'_';}
 function num(x,def){return typeof x==='number'&&isFinite(x)?x:def;}
 /* 読んだ字を、決まりの形にそろえる（名前12字・呼び方4字・長さ1〜240・種類は4つのうち・id は英数字のみ） */
-function sanitize(d){var o={v:3,kinds:[],entries:[],counts:[],notes:[],notice:d.notice===true};
+function sanitize(d){var o={v:3,kinds:[],entries:[],counts:[],notes:[],todos:[],notice:d.notice===true};
   (d.kinds||[]).forEach(function(k){if(!k||typeof k!=='object')return;var t=TYPES[k.type]?k.type:'span',n={id:sid(k.id),type:t,name:String(k.name==null?'':k.name).trim().slice(0,12)||'名前なし',hidden:!!k.hidden};
     if(t==='fixed'){var m=parseInt(k.minutes,10);n.minutes=(m>=1&&m<=240)?m:25;}if(t==='count')n.unit=cleanUnit(k.unit);o.kinds.push(n);});
   (d.entries||[]).forEach(function(e){if(!e||typeof e.start!=='number')return;var n={id:sid(e.id),kind:sid(e.kind),start:e.start,end:typeof e.end==='number'?e.end:null,full:!!e.full};var p=parseInt(e.planned,10);if(p>=1&&p<=240)n.planned=p;o.entries.push(n);});
   (d.counts||[]).forEach(function(c){if(!c||typeof c.at!=='number')return;o.counts.push({id:sid(c.id),kind:sid(c.kind),at:c.at});});
-  (d.notes||[]).forEach(function(n){if(!n||typeof n.at!=='number')return;o.notes.push({id:sid(n.id),at:n.at,text:String(n.text==null?'':n.text).slice(0,200),kind:n.kind?sid(n.kind):null,entry:n.entry?sid(n.entry):null});});
+  (d.notes||[]).forEach(function(n){if(!n||typeof n.at!=='number')return;o.notes.push({id:sid(n.id),at:n.at,text:String(n.text==null?'':n.text).slice(0,200),kind:n.kind?sid(n.kind):null,entry:n.entry?sid(n.entry):null,todo:n.todo?sid(n.todo):undefined});});
+  (Array.isArray(d.todos)?d.todos:[]).forEach(function(t){if(!t||typeof t!=='object'||typeof t.at!=='number')return;var tx=String(t.text==null?'':t.text).trim().slice(0,80);if(!tx)return;o.todos.push({id:sid(t.id),text:tx,at:t.at,done:typeof t.done==='number'?t.done:null});});
   return o;}
 function validV3(d){return d&&Array.isArray(d.kinds)&&Array.isArray(d.entries)&&Array.isArray(d.counts)&&Array.isArray(d.notes)&&d.entries.every(function(e){return e&&typeof e.start==='number'&&typeof e.kind==='string';});}
 function parseBackup(text){var j;try{j=JSON.parse(text);}catch(e){return{ok:false,error:'ファイルが読めません'};}
@@ -117,22 +128,16 @@ function csvFor(st,from,to,now){var rows=[];function hmm(ms){var d=new Date(ms);
   st.entries.forEach(function(e){if(e.start>=from&&e.start<to){var k=kindOf(st,e.kind);rows.push([e.start,ymd(e.start),hmm(e.start),k.name,'時間',e.end==null?'':hmm(e.end),Math.round(((e.end==null?now:e.end)-e.start)/60000),e.full?'決めた時間を終えた':'']);}});
   st.counts.forEach(function(c){if(c.at>=from&&c.at<to)rows.push([c.at,ymd(c.at),hmm(c.at),kindOf(st,c.kind).name,'回数','',1,'']);});
   st.notes.forEach(function(n){if(n.at>=from&&n.at<to)rows.push([n.at,ymd(n.at),hmm(n.at),n.kind?kindOf(st,n.kind).name:'そのほか','できたこと','','',n.text]);});
+  (st.todos||[]).forEach(function(t){if(t.at>=from&&t.at<to)rows.push([t.at,ymd(t.at),hmm(t.at),'やること','やること',t.done==null?'':hmm(t.done),'',t.text]);});
   rows.sort(function(a,b){return a[0]-b[0];});
   return ['日付,時刻,記録,種類,終わり,分または回,メモ'].concat(rows.map(function(r){return [r[1],r[2],r[3],r[4],r[5],r[6],r[7]].map(csvEsc).join(',');})).join('\n');}
-function mainKinds(st){return st.kinds.filter(function(k){return !k.hidden;});}
-function btnLabel(st,k,now){var r=runningEntry(st);
-  if(k.type==='note')return k.name+'を書く';
-  if(k.type==='count')return k.name+'　＋1';
-  var verb=k.type==='fixed'?k.name+'を'+k.minutes+'分始める':k.name+'をはかる';
-  if(r&&r.kind===k.id)return k.name+'を終える';
-  if(r)return kindOf(st,r.kind).name+'を終えて、'+verb;
-  return verb;}
+function mainKinds(st){return st.kinds.filter(function(k){return !k.hidden&&k.type!=='note';});}
 /* ===== 計算ここまで ===== */
 if(typeof document!=='undefined'){
 var demo=/[?&]demo=1/.test(location.search),KEY=demo?'jikan_v3_demo':'jikan_v3';
-var st,tab='rec',sub=null,addType='span',pend=null,alarmMsg='',more=false,setMsg='',pendingBk=null,addName='副業',addMin='25',addUnit='',revMode='day',revDay=null,ntext='',showList=false,edit=null,delAsk=false,csvText='';
+var toastSeq=0,toastMsg='',ttext='',mtext='',st,tab='rec',sub=null,addType='span',pend=null,alarmMsg='',more=false,setMsg='',pendingBk=null,addName='仕事',addMin='25',addUnit='',revMode='day',revDay=null,ntext='',showList=false,edit=null,delAsk=false,csvText='';
 if(/[?&]mode=week/.test(location.search))revMode='week';
-var aq=location.search.match(/[?&]addtype=(span|fixed|count|note)/);if(aq){sub='add';addType=aq[1];addName=EXAMPLE[addType];}
+var aq=location.search.match(/[?&]addtype=(span|fixed|count)/);if(aq){sub='add';addType=aq[1];addName=EXAMPLE[addType];}
 var an=location.search.match(/[?&]addname=([^&]*)/);if(an)addName=decodeURIComponent(an[1]);var am=location.search.match(/[?&]addmin=(\d+)/);if(am)addMin=am[1];
 var tq=location.search.match(/[?&]tab=(rec|rev|set)/);if(tq)tab=tq[1];var sq=location.search.match(/[?&]sub=(add|note)/);if(sq)sub=sq[1];
 function save(){try{localStorage.setItem(KEY,JSON.stringify(st));}catch(e){}}
@@ -147,43 +152,46 @@ function makeDemo(){var now=Date.now(),s=newState();s.kinds.push({id:'k4',type:'
   E('k2',mk(0,8,0),mk(0,8,25),true,25);E('k2',mk(0,12,0),mk(0,12,25),true,25);N(mk(0,12,26),'第3章を読み終えた','k2');
   C(mk(0,8,30));C(mk(0,8,31));C(mk(0,12,30));
   [1,2].forEach(function(d){E('k1',mk(d,20,0),mk(d,20,50));N(mk(d,20,51),'ページの文を直した','k1');E('k2',mk(d,21,0),mk(d,21,25),true,25);C(mk(d,21,30));C(mk(d,21,31));});
-  s.entries.push({id:uid(),kind:'k1',start:now-18*60000,end:null,full:false});return s;}
+  s.entries.push({id:uid(),kind:'k1',start:now-18*60000,end:null,full:false});addTodo(s,'請求書を送る',now-3600000);addTodo(s,'見積もりを直す',now-3500000);addTodo(s,'本を10ページ読む',now-3400000);toggleTodo(s,s.todos[0].id,now-600000);return s;}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function hm(ms){var d=new Date(ms);return p2(d.getHours())+':'+p2(d.getMinutes());}
 function dstr(ms){var d=new Date(ms);return (d.getMonth()+1)+'月'+d.getDate()+'日';}
-var INTRO='<div class="card intro"><div class="muted">記録は、この端末の中だけに残ります。</div><div class="muted">下の3つは、見本のボタンです。押すと、そのまま記録が始まります。名前を変えたり、自分のボタンを作ったりできます。</div></div>';
+var INTRO='<div class="card intro"><div class="muted">▶ を押すと、時間をはかり始めます。記録は、この端末の中だけに残ります。</div></div>';
 
-function subText(k,t){var r=runningEntry(st),inc=r&&r.kind===k.id?'（今回を含む）':'';if(k.type==='count')return 'きょうの合計 '+t.count+unitOf(k);if(k.type==='fixed'||k.type==='span')return 'きょうの合計 '+fmtHM(t.ms)+(k.type==='fixed'&&t.times?'（'+t.times+'回）':'')+inc;return '';}
+function rowHtml(k,now,r,t){var run=r&&r.kind===k.id,nm=esc(k.name),h='';
+  if(k.type==='span'){h='<div class="rw'+(run?' run':'')+'"><div class="nm">'+nm+'</div><div class="rt">'+(run?'<span id="clock" data-k="span">'+fmtHMS(now-r.start)+'</span><button class="pl" data-do="press" data-id="'+k.id+'" aria-label="'+nm+'を止める">■</button>':'<span>'+fmtH(t.ms)+'</span><button class="pl" data-do="press" data-id="'+k.id+'" aria-label="'+nm+'を始める">▶</button>')+'</div></div>';}
+  else if(k.type==='fixed'){h='<div class="rw'+(run?' run':'')+'"><div class="nm">'+nm+' '+k.minutes+'分</div><div class="rt">'+(run?'<span id="clock" data-k="fixed">'+fmtMS(r.start+(r.planned||k.minutes)*60000-now)+'</span><button class="pl" data-do="press" data-id="'+k.id+'" aria-label="'+nm+'を止める">■</button>':'<span>'+t.times+'回</span><button class="pl" data-do="press" data-id="'+k.id+'" aria-label="'+nm+'を始める">▶</button>')+'</div></div>';}
+  else{var lc=0;st.counts.forEach(function(c){if(c.kind===k.id&&c.at>lc)lc=c.at;});
+    h='<div class="rw"><div class="nm">'+nm+'</div><div class="rt"><span>'+t.count+esc(unitOf(k))+'</span><button class="pl pls" data-do="press" data-id="'+k.id+'" aria-label="'+nm+'を1つ増やす">＋1</button></div></div>'+(lc&&now-lc<=60000?'<div style="text-align:right"><button class="sm" data-do="undo" data-id="'+k.id+'">取り消す</button></div>':'');}
+  return h;}
 function vRec(now){
-  var r=runningEntry(st),h='',ds=dayStart(now),ks=mainKinds(st),top=ks.slice(0,4),rest=ks.slice(4);
+  var r=runningEntry(st),h='',ds=dayStart(now),ks=mainKinds(st),T=dayTotals(st,ds,now);
   h+='<div class="top"><h1>時間とできたこと</h1><span>'+dstr(now)+'</span></div><div class="muted" style="margin:-2px 0 8px">何にどれだけ時間を使い、何ができたかを、毎日残せます。</div>';
-  if(st.notice===true)h+='<div class="card intro"><div>'+esc('前の版の記録を、そのまま引き継ぎました（前の記録は消していません）。ボタンの名前は、設定で変えられます。自分のボタンも作れます。')+'</div><button class="sm" data-do="noticeclose" style="margin-top:8px">閉じる</button></div>';
+  var sm=daySummary(st,ds,now);h+='<div id="sumtop" style="font-weight:700;margin:0 0 8px'+(sm?'':';display:none')+'">'+esc(sm?'きょう　'+sm:'')+'</div>';
+  if(st.notice===true)h+='<div class="card intro"><div>'+esc('前の版の記録を、そのまま引き継ぎました（前の記録は消していません）。名前は、設定で変えられます。')+'</div><button class="sm" data-do="noticeclose" style="margin-top:8px">閉じる</button></div>';
   if(alarmMsg)h+='<div class="alarm">'+esc(alarmMsg)+' <button class="sm" data-do="ack">とじる</button></div>';
-  var empty=!st.entries.length&&!st.counts.length&&!st.notes.length;if(empty)h+=INTRO;
-  if(r){var rk=kindOf(st,r.kind);h+='<div class="nowbox"><div>'+esc(rk.name)+(r.planned?'（'+r.planned+'分）':'')+'をはかっています</div><div class="muted" style="color:#ddd;margin-top:6px">今回</div><div class="big" id="clock">'+fmtHMS(now-r.start)+'</div><div class="muted" style="color:#ccc">'+hm(r.start)+' から</div></div>';
-    if(now-r.start>8*3600000)h+='<div class="warn"><b>まだ動いています。いつ終わりましたか？</b><input id="fend" aria-label="終わった時刻" type="datetime-local" value="'+dtl(now)+'" style="margin:8px 0"><button class="sm" data-do="fixend" style="background:#222;color:#fff">この時刻で終える</button></div>';}
+  var empty=!st.entries.length&&!st.counts.length&&!st.notes.length&&!(st.todos||[]).length;if(empty)h+=INTRO;
+  if(r&&now-r.start>8*3600000)h+='<div class="warn"><b>まだ動いています。いつ終わりましたか？</b><input id="fend" aria-label="終わった時刻" type="datetime-local" value="'+dtl(now)+'" style="margin:8px 0"><button class="sm" data-do="fixend" style="background:#222;color:#fff">この時刻で終える</button></div>';
   if(pend){h+='<div class="card"><b>'+esc(pend.title)+'</b><textarea id="ntext" aria-label="できたことの文" maxlength="200" placeholder="例：見積もりを1件送った" style="min-height:80px">'+esc(ntext)+'</textarea><div class="flex" style="margin-top:8px"><button class="sm" data-do="notego" style="background:#222;color:#fff">書く</button><button class="sm" data-do="noteskip">'+(pend.skip?'飛ばす':'やめる')+'</button></div></div>';}
-  top.forEach(function(k){var run=r&&r.kind===k.id,t=dayTotals(st,ds,now)[k.id]||{ms:0,times:0,count:0},sub2='';
-    sub2=subText(k,t);
-    h+='<button class="big-b t-'+k.type+(run?' run':'')+'" data-do="press" data-id="'+k.id+'">'+esc(btnLabel(st,k,now))+(sub2?'<small data-live="'+k.id+'">'+esc(sub2)+'</small>':'')+'</button>';
-    if(k.type==='count'&&t.count)h+='<button class="sm" data-do="undo" data-id="'+k.id+'">いまの＋1を取り消す</button>';});
-  if(rest.length){h+='<div class="card"><b>ほかの記録</b>'+rest.map(function(k){return '<button class="big-b t-'+k.type+'" style="min-height:52px;font-size:17px" data-do="press" data-id="'+k.id+'">'+esc(btnLabel(st,k,now))+'</button>';}).join('')+'</div>';}
-  h+='<button class="sm" data-do="gotoadd" style="width:100%;margin:6px 0">＋ 自分の記録ボタンを作る</button>';
-  h+='<div class="card"><b>きょう ここまで</b><div>'+(esc(daySummary(st,ds,now))||'<span class="muted">まだ記録がありません。上のボタンを1回押すと始まります。</span>')+'</div></div>';
+  ks.forEach(function(k){h+=rowHtml(k,now,r,T[k.id]||{ms:0,times:0,count:0});});
+  h+='<button class="sm" data-do="gotoadd" style="width:100%;margin:6px 0">＋ 足す</button>';
+  var tv=visibleTodos(st,now);
+  h+='<div class="card"><b>やること</b><div class="flex" style="margin:8px 0;flex-wrap:nowrap"><input id="ttext" aria-label="やること" maxlength="80" placeholder="やること" value="'+esc(ttext)+'"><button class="sm" data-do="todoadd" style="flex:none;background:#222;color:#fff">足す</button></div>'+
+   tv.map(function(t){var dn=t.done!=null;return '<div class="td'+(dn?' dn':'')+'"><button class="tdm" data-do="todotog" data-id="'+t.id+'" aria-label="'+(dn?'済みを戻す：':'済みにする：')+esc(t.text)+'"><b class="ck">'+(dn?'☑':'☐')+'</b><span>'+esc(t.text)+'</span></button><button class="x" data-do="todoDel" data-id="'+t.id+'" aria-label="消す">×</button></div>';}).join('')+(toastMsg?'<div id="toast" class="muted" role="status" style="margin-top:6px">'+esc(toastMsg)+'</div>':'')+'</div>';
+  h+='<div class="card"><b>できたこと</b><div class="flex" style="margin:8px 0;flex-wrap:nowrap"><input id="mtext" aria-label="できたことを書く" maxlength="200" placeholder="できたことを書く" value="'+esc(mtext)+'"><button class="sm" data-do="memogo" style="flex:none;background:#222;color:#fff">書く</button></div></div>';
   return h;}
 
 function dtl(ms){var d=new Date(ms);return ymd(ms)+'T'+hm(ms);}
-function vAdd(){var h='<div class="flex"><button class="sm" data-do="back">‹ 戻る</button><h2>自分の記録ボタンを作る</h2></div><div class="card">';
-  var ex={span:'使った時間を、始めと終わりで残します。',fixed:'25分などを決めてはかります。終えた回数と合計の時間が残ります。',count:'押すたびに＋1。数が残ります。',note:'日付の付いた1行を書きます。'};
-  Object.keys(TYPES).forEach(function(t){var on=addType===t;h+='<label class="opt'+(on?' on':'')+'"><input type="radio" name="ty" aria-label="'+TYPES[t]+'" data-ty="'+t+'"'+(on?' checked':'')+'><span><b>'+TYPES[t]+'</b><span class="muted">'+ex[t]+'</span></span></label>';
-    if(on){h+='<div style="margin:0 0 10px 8px;padding-left:10px;border-left:4px solid #222"><label>名前<input id="kname" aria-label="記録の名前" maxlength="12" value="'+esc(addName)+'"></label>'+(t==='fixed'?'<label>何分はかる？<input id="kmin" aria-label="何分はかる" type="number" min="1" max="240" inputmode="numeric" value="'+esc(addMin)+'"></label>':'')+(t==='count'?'<label>数える物の呼び方（回・問・件・ページ など。入れなければ「回」）<input id="kunit" aria-label="数える物の呼び方" maxlength="4" value="'+esc(addUnit)+'"></label>':'')+'</div>';}});
-  h+='<div class="card" style="background:#f4f4f2"><b>記録の画面に、このボタンが足されます</b><div id="preview">'+previewHtml()+'</div></div></div><div class="makebar"><div id="kerr" style="color:#b00020" role="alert"></div>'+makeBtnHtml()+'</div><div style="height:150px"></div>';return h;}
-function makeBtnHtml(){var empty=!String(addName||'').trim(),txt=empty?'名前を入れてください':'「'+previewLabel(addType,addName,addMin)+'」ボタンを作る';
-  return '<button id="makebtn" data-do="addgo"'+(empty?' disabled':'')+' style="width:100%;min-height:56px;line-height:1.3;white-space:normal;background:'+(empty?'#777':'#222')+';color:#fff;font-weight:700">'+esc(txt)+'</button>';}
-function previewHtml(){return '<div style="border:2px dashed #666;border-radius:12px;padding:6px;opacity:.8;pointer-events:none"><span class="muted" style="font-size:13px">見本（押せません）</span><div class="big-b t-'+addType+'" style="min-height:56px;margin:8px 0">'+esc(previewLabel(addType,addName,addMin))+(addType==='count'?'<small>きょうの合計 0'+esc(cleanUnit(addUnit))+'</small>':addType==='note'?'':'<small>きょうの合計 0分</small>')+'</div></div>';}
+function vAdd(){var h='<div class="flex"><button class="sm" data-do="back">‹ 戻る</button><h2>足す</h2></div><div class="card">';
+  ['span','fixed','count'].forEach(function(t){var on=addType===t;var lbl=TYPES[t]+'（'+TYDESC[t]+'）';h+='<label class="opt'+(on?' on':'')+'"><input type="radio" name="ty" aria-label="'+esc(lbl)+'" data-ty="'+t+'"'+(on?' checked':'')+'><span><b>'+esc(lbl)+'</b></span></label>';
+    if(on){h+='<div style="margin:0 0 10px 8px;padding-left:10px;border-left:4px solid #222"><label>名前<input id="kname" aria-label="名前" maxlength="12" value="'+esc(addName)+'"></label>'+(t==='fixed'?'<label>何分？<input id="kmin" aria-label="何分" type="number" min="1" max="240" inputmode="numeric" value="'+esc(addMin)+'"></label>':'')+(t==='count'?'<label>数える物の呼び方（回・問・件・ページ など。入れなければ「回」）<input id="kunit" aria-label="数える物の呼び方" maxlength="4" value="'+esc(addUnit)+'"></label>':'')+'</div>';}});
+  h+='<div class="card" style="background:#f4f4f2"><div id="preview">'+previewHtml()+'</div></div></div><div class="makebar"><div id="kerr" style="color:#b00020" role="alert"></div>'+makeBtnHtml()+'</div><div style="height:150px"></div>';return h;}
+function makeBtnHtml(){var empty=!String(addName||'').trim();
+  return '<button id="makebtn" data-do="addgo"'+(empty?' disabled':'')+' style="width:100%;min-height:56px;background:'+(empty?'#777':'#222')+';color:#fff;font-weight:700">'+(empty?'名前を入れてください':'足す')+'</button>';}
+function previewHtml(){return '<div class="rw" aria-hidden="true" style="opacity:.55;pointer-events:none;border:2px dashed #666;box-shadow:none;position:relative"><span style="position:absolute;top:-10px;left:8px;background:#f4f4f2;padding:0 6px;font-size:12px;color:#555">見本</span><div class="nm">'+esc(rowLabel(addType,addName,addMin))+'</div><div class="rt"><span>'+(addType==='span'?'0:00':addType==='fixed'?'0回':'0'+esc(cleanUnit(addUnit)))+'</span><span class="pl'+(addType==='count'?' pls':'')+'" style="display:inline-flex;align-items:center;justify-content:center">'+(addType==='count'?'＋1':'▶')+'</span></div></div>';}
 
 function kindRows(ids,t,nsBy){return ids.map(function(i){var k=kindOf(st,i),v=t[i],line='';
-  if(v)line=esc(k.type==='count'?v.count+unitOf(k):k.type==='fixed'?fixedLine(st,k,revDay,Date.now(),v):fmtHM(v.ms));
+  if(v)line=esc(k.type==='count'?v.count+unitOf(k):k.type==='fixed'?fixedLine(st,k,revDay,Date.now(),v):fmtH(v.ms));
   return '<div class="row"><b>'+esc(k.name)+'</b><span>'+line+'</span></div>'+(nsBy[i]||[]).map(noteLine).join('');}).join('');}
 function noteLine(n){return '<div class="row" style="padding-left:14px"><span><span class="muted" style="font-size:13px">できたこと　</span>'+hm(n.at)+'　'+esc(n.text)+'</span><button class="sm" data-do="enote" data-id="'+n.id+'" aria-label="できたことを直す：'+esc(n.text)+'">直す</button></div>';}
 function vRev(now){if(!revDay)revDay=dayStart(now);var h='<div class="top"><h2>ふりかえり</h2><span class="flex"><button class="sm" data-do="rmode" data-id="day"'+(revMode==='day'?' style="background:#222;color:#fff"':'')+'>日</button><button class="sm" data-do="rmode" data-id="week"'+(revMode==='week'?' style="background:#222;color:#fff"':'')+'>週</button></span></div>';
@@ -193,12 +201,12 @@ function vRev(now){if(!revDay)revDay=dayStart(now);var h='<div class="top"><h2>�
     ns.forEach(function(n){if(n.kind&&st.kinds.some(function(k){return k.id===n.kind&&k.type!=='note';}))(by[n.kind]=by[n.kind]||[]).push(n);else oth.push(n);});
     var ids=st.kinds.map(function(k){return k.id;}).filter(function(i){return t[i]||by[i];});
     if(!ids.length&&!oth.length)h+='<div class="card">この日の記録はまだありません。</div>';
-    else{h+='<div class="card"><b>記録した時間　'+fmtHM(tot)+'</b>'+kindRows(ids,t,by)+(oth.length?'<div class="row"><b>この日にできたこと</b><span></span></div>'+oth.map(noteLine).join(''):'')+'</div>';}
+    else{h+='<div class="card"><b>記録した時間　'+fmtH(tot)+'</b>'+kindRows(ids,t,by)+(oth.length?'<div class="row"><b>この日にできたこと</b><span></span></div>'+oth.map(noteLine).join(''):'')+'</div>';}
     var es=st.entries.filter(function(e){return clipMs(e,revDay,dayEnd(revDay),now)>0;}).sort(function(a,b){return a.start-b.start;});
     h+='<button class="sm" data-do="elist" style="width:100%">時刻ごとの記録を見る・直す</button>';
     if(showList)h+='<div class="card">'+(es.length?es.map(function(e){return '<div class="row"><span>'+esc(kindOf(st,e.kind).name)+'　'+hm(e.start)+'〜'+(e.end==null?'いま':hm(e.end))+'</span><button class="sm" data-do="eent" data-id="'+e.id+'" aria-label="記録を直す：'+esc(kindOf(st,e.kind).name)+' '+hm(e.start)+'">直す</button></div>';}).join(''):'<span class="muted">この日の、時刻のある記録はありません。</span>')+'</div>';}
   else{var w=weekTotals(st,revDay,now),ws=revDay-6*86400000,ids2=Object.keys(w);
-    h+='<div class="card"><b>記録ごと</b>'+(ids2.length?ids2.map(function(i){var k=kindOf(st,i),v=w[i];return '<div class="row"><span>'+esc(k.name)+'</span><span>'+v.days+'日・'+esc(k.type==='count'?v.count+unitOf(k):fmtHM(v.ms)+(v.times?'・'+v.times+'回':''))+'</span></div>';}).join(''):'<div class="muted">この週の記録はまだありません。</div>')+'</div>';
+    h+='<div class="card"><b>記録ごと</b>'+(ids2.length?ids2.map(function(i){var k=kindOf(st,i),v=w[i];return '<div class="row"><span>'+esc(k.name)+'</span><span>'+v.days+'日・'+esc(k.type==='count'?v.count+unitOf(k):fmtH(v.ms)+(v.times?'・'+v.times+'回':''))+'</span></div>';}).join(''):'<div class="muted">この週の記録はまだありません。</div>')+'</div>';
     var ns2=st.notes.filter(function(n){return n.at>=ws&&n.at<dayEnd(revDay);}).sort(function(a,b){return a.at-b.at;});
     h+='<div class="card"><b>できたこと</b>'+(ns2.length?ns2.map(function(n){return '<div class="row"><span>'+dstr(n.at)+'　'+esc(n.text)+'</span></div>';}).join(''):'<div class="muted">まだありません。</div>')+'</div>';}
   return h;}
@@ -208,8 +216,8 @@ function vEditE(now){var h='<div class="flex"><button class="sm" data-do="ecance
   else{var e=null;st.entries.forEach(function(x){if(x.id===edit.id)e=x;});if(!e){edit=null;return '';}
     h+='<label>記録<select id="ekind" aria-label="記録の名前">'+st.kinds.filter(function(k){return k.type==='span'||k.type==='fixed';}).map(function(k){return '<option value="'+k.id+'"'+(k.id===e.kind?' selected':'')+'>'+esc(k.name)+'</option>';}).join('')+'</select></label><label>始まり<input id="est" type="datetime-local" aria-label="始まりの時刻" value="'+dtl(e.start)+'"></label><label>終わり'+(e.end==null?'（いま動いています。直すと終わります）':'')+'<input id="een" type="datetime-local" aria-label="終わりの時刻" value="'+dtl(e.end==null?now:e.end)+'"></label>';}
   h+='<div id="eerr" style="color:#b00020" role="alert"></div><div class="flex"><button data-do="esave" style="flex:1;background:#222;color:#fff">保存</button><button data-do="ecancel" style="flex:1">戻る</button></div><div style="margin-top:12px">'+(delAsk?'<b>本当に消しますか？</b> <button class="sm" data-do="edel" style="background:#c0392b;color:#fff">消す</button> <button class="sm" data-do="edelno">やめる</button>':'<button class="sm" data-do="edelask">これを消す</button>')+'</div></div>';return h;}
-function vSet(now){var h='<h2>設定</h2><div class="card"><b>この道具について</b><p>何にどれだけ時間を使い、何ができたかを、毎日残せます。記録は、この端末の中だけに残ります。</p><div class="muted">記録のしかたは4つ。使った時間をはかる（始めと終わりを残す）／決めた時間をはかる（終えた回数と合計の時間を残す）／回数を数える（押すたびに＋1）／できたことを書く（日付の付いた1行）。「記録」の画面の「自分の記録ボタンを作る」で、自分で作れます。</div></div>';
-  h+='<div class="card"><b>記録のしかた</b><div class="muted">名前はここで直せます。画面に出るのは4つまで（上から）。5つ目からは「ほかの記録」に入ります。</div>'+st.kinds.map(function(k,i){return '<div style="margin:10px 0;padding-bottom:8px;border-bottom:1px solid #eee"><input data-nm="'+k.id+'" maxlength="12" value="'+esc(k.name)+'" aria-label="記録の名前（'+TYPES[k.type]+'）"><div class="muted">'+TYPES[k.type]+(k.hidden?'・隠している':'')+'</div>'+(k.type==='fixed'?'<label>何分はかる？<input data-mn="'+k.id+'" type="number" min="1" max="240" inputmode="numeric" aria-label="'+esc(k.name)+'の長さ（分）" value="'+k.minutes+'"></label>':'')+(k.type==='count'?'<label>数える物の呼び方<input data-un="'+k.id+'" maxlength="4" aria-label="'+esc(k.name)+'の呼び方" value="'+esc(unitOf(k))+'"></label>':'')+'<div class="flex"><button class="sm" data-do="kup" data-id="'+k.id+'" aria-label="'+esc(k.name)+'を上へ"'+(i===0?' disabled':'')+'>上へ</button><button class="sm" data-do="kdown" data-id="'+k.id+'" aria-label="'+esc(k.name)+'を下へ"'+(i===st.kinds.length-1?' disabled':'')+'>下へ</button><button class="sm" data-do="hide" data-id="'+k.id+'">'+(k.hidden?'出す':'隠す')+'</button></div></div>';}).join('')+'</div>';
+function vSet(now){var h='<h2>設定</h2><div class="card"><b>この道具について</b><p>何にどれだけ時間を使い、何ができたかを、毎日残せます。記録は、この端末の中だけに残ります。</p><div class="muted">記録は3種類。時間（押して始めて、押して止める）／タイマー（25分など。終えた回数が残る）／回数（押すたびに＋1）。「記録」の画面の「＋ 足す」で作れます。</div></div>';
+  h+='<div class="card"><b>記録の名前と並び</b><div class="muted">名前はここで直せます。並びは上から。</div>'+st.kinds.map(function(k,i){return '<div style="margin:10px 0;padding-bottom:8px;border-bottom:1px solid #eee"><input data-nm="'+k.id+'" maxlength="12" value="'+esc(k.name)+'" aria-label="記録の名前（'+TYPES[k.type]+'）"><div class="muted">'+TYPES[k.type]+(k.hidden?'・隠している':'')+'</div>'+(k.type==='fixed'?'<label>何分？<input data-mn="'+k.id+'" type="number" min="1" max="240" inputmode="numeric" aria-label="'+esc(k.name)+'の長さ（分）" value="'+k.minutes+'"></label>':'')+(k.type==='count'?'<label>数える物の呼び方<input data-un="'+k.id+'" maxlength="4" aria-label="'+esc(k.name)+'の呼び方" value="'+esc(unitOf(k))+'"></label>':'')+'<div class="flex"><button class="sm" data-do="kup" data-id="'+k.id+'" aria-label="'+esc(k.name)+'を上へ"'+(i===0?' disabled':'')+'>上へ</button><button class="sm" data-do="kdown" data-id="'+k.id+'" aria-label="'+esc(k.name)+'を下へ"'+(i===st.kinds.length-1?' disabled':'')+'>下へ</button><button class="sm" data-do="hide" data-id="'+k.id+'">'+(k.hidden?'出す':'隠す')+'</button></div></div>';}).join('')+'</div>';
   h+='<div class="card"><b>控え（消えない為に）</b><div class="muted">全部を1つのファイルにします。古い版の控えも戻せます。</div><div class="flex"><button class="sm" data-do="bk">控えを書き出す</button><button class="sm" data-do="bkpick">控えから戻す</button></div><input id="bkfile" type="file" accept=".json,application/json" aria-label="控えのファイル" style="display:none">'+(pendingBk?'<div class="warn"><b>いまの記録を、この控えで置き換えます。よいですか？</b><br><button class="sm" data-do="bkgo" style="background:#c0392b;color:#fff">置き換える</button> <button class="sm" data-do="bkno">やめる</button></div>':'')+'</div>';
   h+='<div class="card"><b>CSV（表の字）</b><div class="flex"><button class="sm" data-do="csv1">きょう</button><button class="sm" data-do="csv2">全部</button></div>'+(csvText?'<textarea id="csvbox" readonly aria-label="CSVの中身">'+esc(csvText)+'</textarea><button class="sm" data-do="csvfile" style="margin-top:6px">ファイルで保存</button>':'')+'<div class="muted" role="status">'+esc(setMsg)+'</div></div>';
   if(demo)h+='<div class="card muted">いまは見本のデータです。</div>';return h;}
@@ -228,6 +236,10 @@ document.addEventListener('click',function(ev){var b=ev.target.closest('[data-do
     else if(k.type==='count'){pressCount(st,id,now);save();}
     else{var res=pressTimed(st,id,now);save();if(res.ended)afterEnd(res.ended,now);else pend=null;
       if(res.started&&res.started.planned){try{if('Notification' in window&&Notification.permission==='default')Notification.requestPermission();}catch(e){}}}}
+  else if(d==='todoadd'){var tt=document.getElementById('ttext').value;if(addTodo(st,tt,now)){ttext='';save();}}
+  else if(d==='todotog'){var was=toggleTodo(st,id,now);save();var tt2=(st.todos||[]).filter(function(x){return x.id===id})[0];toastMsg=(was&&tt2&&tt2.done!=null)?'できたことに入れました':'';var my=++toastSeq;if(toastMsg)setTimeout(function(){if(my!==toastSeq)return;toastMsg='';var te=document.getElementById('toast');if(te)te.remove();},2000);}
+  else if(d==='todoDel'){delTodo(st,id);save();}
+  else if(d==='memogo'){var mm=document.getElementById('mtext').value;if(addNote(st,mm,now,null,null)){mtext='';save();}}
   else if(d==='undo'){undoCount(st,id,now);save();}
   else if(d==='notego'){var tx=document.getElementById('ntext').value;if(tx.trim()){addNote(st,tx,now,pend.kind,pend.entry);save();pend=null;ntext='';}}
   else if(d==='noteskip'){pend=null;ntext='';}
@@ -262,13 +274,14 @@ document.addEventListener('click',function(ev){var b=ev.target.closest('[data-do
 document.addEventListener('change',function(ev){var t=ev.target;
   if(t.dataset&&t.dataset.ty){addType=t.dataset.ty;addName=EXAMPLE[addType];addMin='25';addUnit='';render();}
   else if(t.id==='bkfile'&&t.files&&t.files[0]){var rd=new FileReader();rd.onload=function(){var pr=parseBackup(String(rd.result));if(pr.ok){pendingBk=String(rd.result);setMsg=pr.from==='v2'?'古い版の控えです。読み込むと新しい形に写します。':'';}else{pendingBk=null;setMsg=pr.error;}render();};rd.readAsText(t.files[0]);}});
-document.addEventListener('input',function(ev){var t=ev.target;if(t.id==='ntext')ntext=t.value;else if(t.id==='kname'||t.id==='kmin'||t.id==='kunit'){if(t.id==='kname')addName=t.value;else if(t.id==='kmin')addMin=t.value;else addUnit=t.value;var pv=document.getElementById('preview');if(pv)pv.innerHTML=previewHtml();var mb=document.getElementById('makebtn');if(mb)mb.outerHTML=makeBtnHtml();}
+document.addEventListener('input',function(ev){var t=ev.target;if(t.id==='ntext')ntext=t.value;else if(t.id==='ttext')ttext=t.value;else if(t.id==='mtext')mtext=t.value;else if(t.id==='kname'||t.id==='kmin'||t.id==='kunit'){if(t.id==='kname')addName=t.value;else if(t.id==='kmin')addMin=t.value;else addUnit=t.value;var pv=document.getElementById('preview');if(pv)pv.innerHTML=previewHtml();var mb=document.getElementById('makebtn');if(mb)mb.outerHTML=makeBtnHtml();}
   else if(t.dataset&&t.dataset.mn){setMinutes(st,t.dataset.mn,t.value);save();}else if(t.dataset&&t.dataset.un){setUnit(st,t.dataset.un,t.value);save();}else if(t.dataset&&t.dataset.nm){st.kinds.forEach(function(k){if(k.id===t.dataset.nm)k.name=t.value.trim()?t.value.slice(0,12):'名前なし';});save();}});
 st=load();if(!st){st=demo?makeDemo():(loadV2()||newState());save();}
 render();checkDue();
-setInterval(function(){var c=document.getElementById('clock'),r=runningEntry(st);if(c&&r){var nw=Date.now();c.textContent=fmtHMS(nw-r.start);var kk=kindOf(st,r.kind),sm=document.querySelector('[data-live="'+r.kind+'"]');if(sm)sm.textContent=subText(kk,dayTotals(st,dayStart(nw),nw)[r.kind]||{ms:0,times:0,count:0});}checkDue();},1000);
+setInterval(function(){var c=document.getElementById('clock'),r=runningEntry(st);if(c&&r){var nw=Date.now();c.textContent=c.dataset.k==='fixed'?fmtMS(r.start+(r.planned||25)*60000-nw):fmtHMS(nw-r.start);}
+var se=document.getElementById('sumtop');if(se){var sx=daySummary(st,dayStart(Date.now()),Date.now());se.textContent=sx?'きょう　'+sx:'';se.style.display=sx?'':'none';}checkDue();},1000);
 document.addEventListener('visibilitychange',function(){if(!document.hidden)checkDue();});
 if(navigator.serviceWorker&&/^https?:/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(function(){});
 }
-if(typeof module!=='undefined')module.exports={newState:newState,addKind:addKind,pressTimed:pressTimed,finishDue:finishDue,pressCount:pressCount,undoCount:undoCount,addNote:addNote,dayTotals:dayTotals,daySummary:daySummary,weekTotals:weekTotals,migrateV2:migrateV2,parseBackup:parseBackup,backupText:backupText,btnLabel:btnLabel,sanitize:sanitize,unitOf:unitOf,previewLabel:previewLabel,setMinutes:setMinutes,setUnit:setUnit,fixedLine:fixedLine,cleanUnit:cleanUnit,validateEntryEdit:validateEntryEdit,deleteEntry:deleteEntry,moveKind:moveKind,csvFor:csvFor,runningEntry:runningEntry,dayStart:dayStart};
+if(typeof module!=='undefined')module.exports={newState:newState,addKind:addKind,pressTimed:pressTimed,finishDue:finishDue,pressCount:pressCount,undoCount:undoCount,addNote:addNote,dayTotals:dayTotals,daySummary:daySummary,weekTotals:weekTotals,migrateV2:migrateV2,parseBackup:parseBackup,backupText:backupText,rowLabel:rowLabel,addTodo:addTodo,toggleTodo:toggleTodo,delTodo:delTodo,visibleTodos:visibleTodos,fmtH:fmtH,sanitize:sanitize,unitOf:unitOf,setMinutes:setMinutes,setUnit:setUnit,fixedLine:fixedLine,cleanUnit:cleanUnit,validateEntryEdit:validateEntryEdit,deleteEntry:deleteEntry,moveKind:moveKind,csvFor:csvFor,runningEntry:runningEntry,dayStart:dayStart};
 </script></body></html>
