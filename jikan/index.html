@@ -96,7 +96,7 @@ function backupText(st,now){return JSON.stringify({app:'jikan_v3',version:3,save
 function sid(x){return String(x==null?'':x).replace(/[^A-Za-z0-9_-]/g,'_').slice(0,40)||'_';}
 function num(x,def){return typeof x==='number'&&isFinite(x)?x:def;}
 /* 読んだ字を、決まりの形にそろえる（名前12字・呼び方4字・長さ1〜240・種類は4つのうち・id は英数字のみ） */
-function sanitize(d){var o={v:3,kinds:[],entries:[],counts:[],notes:[]};
+function sanitize(d){var o={v:3,kinds:[],entries:[],counts:[],notes:[],notice:d.notice===true};
   (d.kinds||[]).forEach(function(k){if(!k||typeof k!=='object')return;var t=TYPES[k.type]?k.type:'span',n={id:sid(k.id),type:t,name:String(k.name==null?'':k.name).trim().slice(0,12)||'名前なし',hidden:!!k.hidden};
     if(t==='fixed'){var m=parseInt(k.minutes,10);n.minutes=(m>=1&&m<=240)?m:25;}if(t==='count')n.unit=cleanUnit(k.unit);o.kinds.push(n);});
   (d.entries||[]).forEach(function(e){if(!e||typeof e.start!=='number')return;var n={id:sid(e.id),kind:sid(e.kind),start:e.start,end:typeof e.end==='number'?e.end:null,full:!!e.full};var p=parseInt(e.planned,10);if(p>=1&&p<=240)n.planned=p;o.entries.push(n);});
@@ -106,7 +106,7 @@ function sanitize(d){var o={v:3,kinds:[],entries:[],counts:[],notes:[]};
 function validV3(d){return d&&Array.isArray(d.kinds)&&Array.isArray(d.entries)&&Array.isArray(d.counts)&&Array.isArray(d.notes)&&d.entries.every(function(e){return e&&typeof e.start==='number'&&typeof e.kind==='string';});}
 function parseBackup(text){var j;try{j=JSON.parse(text);}catch(e){return{ok:false,error:'ファイルが読めません'};}
   if(j&&j.app==='jikan_v3'&&validV3(j.data))return{ok:true,state:sanitize(j.data),from:'v3'};
-  if(j&&j.app==='jikan_no_kiroku'&&j.data&&Array.isArray(j.data.acts)&&Array.isArray(j.data.entries)&&j.data.entries.every(function(e){return e&&typeof e.start==='number'&&typeof e.act==='string';}))return{ok:true,state:sanitize(migrateV2(j.data)),from:'v2'};
+  if(j&&j.app==='jikan_no_kiroku'&&j.data&&Array.isArray(j.data.acts)&&Array.isArray(j.data.entries)&&j.data.entries.every(function(e){return e&&typeof e.start==='number'&&typeof e.act==='string';})){var m2=sanitize(migrateV2(j.data));m2.notice=true;return{ok:true,state:m2,from:'v2'};}
   return{ok:false,error:'この控えの形ではありません'};}
 function validateEntryEdit(st,id,start,end,now){if(!(start>=0)||!(end>=0))return'時刻が読めません';if(end<=start)return'終わりは、始まりより後にしてください';if(end>now)return'未来の時刻にはできません';
   for(var i=0;i<st.entries.length;i++){var e=st.entries[i];if(e.id===id)continue;var t2=e.end==null?now:e.end;if(start<t2&&end>e.start)return'ほかの記録と重なっています';}return null;}
@@ -137,7 +137,7 @@ var an=location.search.match(/[?&]addname=([^&]*)/);if(an)addName=decodeURICompo
 var tq=location.search.match(/[?&]tab=(rec|rev|set)/);if(tq)tab=tq[1];var sq=location.search.match(/[?&]sub=(add|note)/);if(sq)sub=sq[1];
 function save(){try{localStorage.setItem(KEY,JSON.stringify(st));}catch(e){}}
 function load(){try{var j=JSON.parse(localStorage.getItem(KEY));if(validV3(j))return sanitize(j);}catch(e){}return null;}
-function loadV2(){try{var j=JSON.parse(localStorage.getItem('jikan_v1'));if(j&&Array.isArray(j.acts)&&Array.isArray(j.entries))return sanitize(migrateV2(j));}catch(e){}return null;}
+function loadV2(){try{var j=JSON.parse(localStorage.getItem('jikan_v1'));if(j&&Array.isArray(j.acts)&&Array.isArray(j.entries))var m3=sanitize(migrateV2(j));m3.notice=true;return m3;}catch(e){}return null;}
 function makeDemo(){var now=Date.now(),s=newState();s.kinds.push({id:'k4',type:'count',name:'解いた問題',unit:'問',hidden:false});
   function mk(back,h,m){var d=new Date(dayStart(now)-back*86400000+43200000);return new Date(d.getFullYear(),d.getMonth(),d.getDate(),h,m).getTime();}
   function E(k,a,b,full,pl){if(a>=now)return;var e={id:uid(),kind:k,start:a,end:Math.min(b,now),full:full&&b<=now};if(pl)e.planned=pl;s.entries.push(e);return e;}
@@ -151,12 +151,13 @@ function makeDemo(){var now=Date.now(),s=newState();s.kinds.push({id:'k4',type:'
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function hm(ms){var d=new Date(ms);return p2(d.getHours())+':'+p2(d.getMinutes());}
 function dstr(ms){var d=new Date(ms);return (d.getMonth()+1)+'月'+d.getDate()+'日';}
-var INTRO='<div class="card intro"><b>何にどれだけ時間を使い、何ができたかを、毎日残せます。</b><div class="muted">記録は、この端末の中だけに残ります。</div><div class="muted">下の3つは、見本のボタンです。押すと、そのまま記録が始まります。名前を変えたり、自分のボタンを作ったりできます。</div></div>';
+var INTRO='<div class="card intro"><div class="muted">記録は、この端末の中だけに残ります。</div><div class="muted">下の3つは、見本のボタンです。押すと、そのまま記録が始まります。名前を変えたり、自分のボタンを作ったりできます。</div></div>';
 
 function subText(k,t){var r=runningEntry(st),inc=r&&r.kind===k.id?'（今回を含む）':'';if(k.type==='count')return 'きょうの合計 '+t.count+unitOf(k);if(k.type==='fixed'||k.type==='span')return 'きょうの合計 '+fmtHM(t.ms)+(k.type==='fixed'&&t.times?'（'+t.times+'回）':'')+inc;return '';}
 function vRec(now){
   var r=runningEntry(st),h='',ds=dayStart(now),ks=mainKinds(st),top=ks.slice(0,4),rest=ks.slice(4);
-  h+='<div class="top"><h1>時間とできたこと</h1><span>'+dstr(now)+'</span></div>';
+  h+='<div class="top"><h1>時間とできたこと</h1><span>'+dstr(now)+'</span></div><div class="muted" style="margin:-2px 0 8px">何にどれだけ時間を使い、何ができたかを、毎日残せます。</div>';
+  if(st.notice===true)h+='<div class="card intro"><div>'+esc('前の版の記録を、そのまま引き継ぎました（前の記録は消していません）。ボタンの名前は、設定で変えられます。自分のボタンも作れます。')+'</div><button class="sm" data-do="noticeclose" style="margin-top:8px">閉じる</button></div>';
   if(alarmMsg)h+='<div class="alarm">'+esc(alarmMsg)+' <button class="sm" data-do="ack">とじる</button></div>';
   var empty=!st.entries.length&&!st.counts.length&&!st.notes.length;if(empty)h+=INTRO;
   if(r){var rk=kindOf(st,r.kind);h+='<div class="nowbox"><div>'+esc(rk.name)+(r.planned?'（'+r.planned+'分）':'')+'をはかっています</div><div class="muted" style="color:#ddd;margin-top:6px">今回</div><div class="big" id="clock">'+fmtHMS(now-r.start)+'</div><div class="muted" style="color:#ccc">'+hm(r.start)+' から</div></div>';
@@ -230,6 +231,7 @@ document.addEventListener('click',function(ev){var b=ev.target.closest('[data-do
   else if(d==='undo'){undoCount(st,id,now);save();}
   else if(d==='notego'){var tx=document.getElementById('ntext').value;if(tx.trim()){addNote(st,tx,now,pend.kind,pend.entry);save();pend=null;ntext='';}}
   else if(d==='noteskip'){pend=null;ntext='';}
+  else if(d==='noticeclose'){st.notice=false;save();}
   else if(d==='ack'){alarmMsg='';}
   else if(d==='fixend'){var r=runningEntry(st),en=new Date(document.getElementById('fend').value).getTime();if(r&&en>r.start&&en<=now){r.end=en;r.full=false;save();}}
   else if(d==='gotoadd'){sub='add';addType='span';addName=EXAMPLE.span;addMin='25';addUnit='';}
