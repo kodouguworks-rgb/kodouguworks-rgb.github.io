@@ -137,7 +137,7 @@ var an=location.search.match(/[?&]addname=([^&]*)/);if(an)addName=decodeURICompo
 var tq=location.search.match(/[?&]tab=(rec|rev|set)/);if(tq)tab=tq[1];var sq=location.search.match(/[?&]sub=(add|note)/);if(sq)sub=sq[1];
 function save(){try{localStorage.setItem(KEY,JSON.stringify(st));}catch(e){}}
 function load(){try{var j=JSON.parse(localStorage.getItem(KEY));if(validV3(j))return sanitize(j);}catch(e){}return null;}
-function loadV2(){try{var j=JSON.parse(localStorage.getItem('jikan_v1'));if(j&&Array.isArray(j.acts)&&Array.isArray(j.entries))var m3=sanitize(migrateV2(j));m3.notice=true;return m3;}catch(e){}return null;}
+function loadV2(){try{var j=JSON.parse(localStorage.getItem('jikan_v1'));if(j&&Array.isArray(j.acts)&&Array.isArray(j.entries)){var m3=sanitize(migrateV2(j));m3.notice=true;return m3;}}catch(e){}return null;}
 function makeDemo(){var now=Date.now(),s=newState();s.kinds.push({id:'k4',type:'count',name:'解いた問題',unit:'問',hidden:false});
   function mk(back,h,m){var d=new Date(dayStart(now)-back*86400000+43200000);return new Date(d.getFullYear(),d.getMonth(),d.getDate(),h,m).getTime();}
   function E(k,a,b,full,pl){if(a>=now)return;var e={id:uid(),kind:k,start:a,end:Math.min(b,now),full:full&&b<=now};if(pl)e.planned=pl;s.entries.push(e);return e;}
