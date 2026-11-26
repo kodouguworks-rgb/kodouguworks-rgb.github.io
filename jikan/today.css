@@ -1,0 +1,9 @@
+/* today.css — 記録のタブ（絵 A1〜A6）だけの足し。色・字の大きさは style.css の物を使う */
+.t-it{min-height:52px;width:100%;overflow-wrap:anywhere}
+.t-w{width:100%}
+.t-mid{margin-left:auto;margin-right:auto;justify-content:center}
+.t-row{width:100%;text-align:left}
+.t-foot{margin-bottom:16px}
+.t-f{display:block;margin-top:12px;margin-bottom:4px}
+/* 集中の画面：下の1行（toast）を、下の注記に重ならない高さに出す */
+body:has(.t-foot) #toast{bottom:calc(56px + env(safe-area-inset-bottom) + 76px)}

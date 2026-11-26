@@ -1,0 +1,76 @@
+/* 共通の見た目（元＝構想_2026-11-26/絵_調べからの案/共通.css。クラス名と見た目は同じ。画面の大きさの固定だけ外した） */
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#fff;-webkit-text-size-adjust:100%}
+body{position:relative;max-width:480px;min-height:100vh;min-height:100dvh;margin:0 auto;background:#fff;font-family:-apple-system,"Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif;font-size:16px;font-weight:400;color:#1c1c1e;line-height:1.4;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top)}
+
+/* 押す所の初めの見た目を消す */
+button{font:inherit;color:inherit;background:none;border:0;border-radius:0;text-align:inherit;cursor:pointer;-webkit-appearance:none;appearance:none;-webkit-tap-highlight-color:transparent}
+a{color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid #2f6f55;outline-offset:2px}
+button:disabled{opacity:.4;cursor:default}
+input[type=text],input[type=number],input[type=time],input[type=date],input[type=datetime-local],textarea,select{font:inherit;font-size:16px;color:#1c1c1e;background:#fff;border:1px solid #c7c7cc;border-radius:12px;min-height:44px;width:100%;padding:0 12px;-webkit-appearance:none;appearance:none}
+textarea{padding:10px 12px;min-height:88px;resize:vertical}
+[hidden]{display:none!important}
+
+/* 殻 */
+#hd{padding:32px 20px 0}
+#hd[hidden]+#view{padding-top:32px}
+#view{flex:1;display:flex;flex-direction:column;padding:0 20px calc(56px + env(safe-area-inset-bottom) + 24px)}
+#tabs{position:fixed;left:50%;right:auto;bottom:0;transform:translateX(-50%);width:100%;max-width:480px;height:calc(56px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);z-index:10}
+
+/* ここから下は、共通.css と同じ名前 */
+.sub{font-size:14px;color:#6c6c70}
+.hd{display:flex;justify-content:space-between;align-items:center;min-height:44px}
+.t24{font-size:24px;font-weight:600}
+.m18{font-size:18px}
+.h18{font-size:18px;font-weight:600}
+.big{font-size:48px;font-weight:700;line-height:1.1}
+.c{text-align:center}
+.g8{margin-top:8px}.g12{margin-top:12px}.g16{margin-top:16px}.g24{margin-top:24px}.g32{margin-top:32px}
+.grow{flex:1}
+.btn{display:flex;align-items:center;justify-content:center;border-radius:12px;min-height:52px;width:100%;text-align:center}
+.main{background:#2f6f55;color:#fff;font-weight:600}
+.weak{border:1px solid #2f6f55;color:#2f6f55;background:#fff;min-height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;padding:0 16px;text-align:center}
+.link{color:#6c6c70;font-size:14px;min-height:44px;min-width:44px;display:flex;align-items:center}
+.tabs{position:absolute;left:0;right:0;bottom:0;height:56px;border-top:1px solid #e4e4e7;display:flex;background:#fff}
+.tabs div,.tabs button,.tabs a{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px;color:#6c6c70;min-height:44px}
+.tabs .on{color:#2f6f55}
+.brow{display:flex;align-items:center;min-height:48px;gap:12px}
+.brow .tm{width:44px;flex:none;font-size:14px;color:#6c6c70}
+.brow .bar{width:4px;flex:none;height:32px;border-radius:2px}
+.brow .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.brow .mn{font-size:14px;color:#6c6c70;flex:none;white-space:nowrap}
+.s1{background:#2f6f55}.s2{background:#6fa68f}.s3{background:#b5d3c6}
+.memo{padding-left:56px;font-size:14px;color:#6c6c70;margin-top:-4px;margin-bottom:8px;overflow-wrap:anywhere}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.seg{display:flex;background:#f4f4f5;border-radius:12px;padding:4px}
+.seg div,.seg button{flex:1;text-align:center;min-height:44px;line-height:44px;border-radius:8px;color:#6c6c70}
+.seg .on{background:#fff;color:#1c1c1e}
+.hrow{display:flex;align-items:center;min-height:56px;border-bottom:1px solid #e4e4e7}
+.circ{width:44px;height:44px;display:flex;align-items:center;justify-content:center}
+.circ i{width:24px;height:24px;border-radius:12px;border:1px solid #c7c7cc;display:block}
+.wk{display:flex;justify-content:space-between;text-align:center;font-size:14px;color:#6c6c70}
+.wk div{width:44px}.wk span{display:flex;height:44px;width:44px;align-items:center;justify-content:center;font-size:18px;color:#1c1c1e;border-radius:12px}
+.wk .td{border:1px solid #2f6f55}
+.mg{display:grid;grid-template-columns:repeat(7,1fr);justify-items:center;row-gap:8px}
+.mg i{width:20px;height:20px;border-radius:10px;background:#f4f4f5;display:block}
+.mg i.d{background:#2f6f55}.mg i.t{background:#fff;border:1px solid #2f6f55}.mg i.e{background:none}
+.dk{display:flex;justify-content:space-between;align-items:center;min-height:44px}
+.chart{position:relative;height:288px;margin-left:28px;border-top:1px solid #e4e4e7}
+.chart .col{position:absolute;top:0;height:288px;width:44px}
+.chart .blk{position:absolute;left:4px;width:36px;border-radius:4px}
+.ax{position:absolute;left:-28px;font-size:14px;color:#6c6c70}
+.dot{width:8px;height:8px;border-radius:4px;background:#2f6f55;display:block}
+.add{color:#2f6f55;font-size:14px;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:flex-end}
+.sr{display:flex;justify-content:space-between;align-items:center;min-height:44px}
+.sr .a{color:#2f6f55;font-size:14px}
+.sec{font-size:14px;color:#6c6c70;margin-top:16px}
+
+/* 下から出る紙 */
+#sheet{display:none;position:fixed;left:0;top:0;right:0;bottom:0;z-index:20;background:rgba(28,28,30,.35);align-items:flex-end;justify-content:center}
+#sheet.on{display:flex}
+.sheet-box{width:100%;max-width:480px;max-height:88vh;overflow-y:auto;background:#fff;border-radius:16px 16px 0 0;padding:24px 20px calc(16px + env(safe-area-inset-bottom))}
+
+/* 下の1行 */
+#toast{display:none;position:fixed;left:16px;right:16px;margin:0 auto;width:-webkit-fit-content;width:fit-content;max-width:448px;bottom:calc(56px + env(safe-area-inset-bottom) + 12px);z-index:30;background:#1c1c1e;color:#fff;font-size:14px;border-radius:12px;padding:12px 16px;text-align:center;text-wrap:balance;overflow-wrap:anywhere}
+#toast.on{display:block}

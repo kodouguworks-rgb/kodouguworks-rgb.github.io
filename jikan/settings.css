@@ -1,0 +1,8 @@
+/* 設定（S1） */
+.sr button.a,.set-sw{min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:flex-end;flex-shrink:0}
+.set-sw{font-size:16px;color:#6c6c70}
+.set-sw[aria-checked=true]{color:#2f6f55}
+.set-nm{min-width:0;overflow-wrap:anywhere}
+.set-off{color:#6c6c70}
+.set-row{width:100%}
+.set-more{min-height:44px;display:flex;align-items:center;font-size:16px;color:#1c1c1e}
