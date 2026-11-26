@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>時間の記録</title>
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#222222"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<style>
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.5 -apple-system,"Hiragino Sans",sans-serif;background:#f4f4f2;color:#222}
+#app{max-width:480px;margin:0 auto;min-height:100vh;padding:12px 12px 100px}
+h2{font-size:18px;margin:8px 0}
+.card{background:#fff;border-radius:14px;padding:12px;margin:10px 0;box-shadow:0 1px 2px #0002}
+.now{background:#222;color:#fff;border-radius:14px;padding:14px;margin:10px 0;text-align:center}
+.now .big{font-size:40px;font-variant-numeric:tabular-nums;font-weight:700;letter-spacing:1px}
+.now .nm{font-size:20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{font:inherit;min-height:48px;border:0;border-radius:12px;padding:8px 12px;background:#e4e4e0;color:#222}
+.act{min-height:84px;font-size:20px;font-weight:700;color:#fff;border:4px solid transparent;text-shadow:0 1px 2px #0006}
+.act.on{border-color:#222;outline:3px solid #fff;outline-offset:-7px}
+.act small{display:block;font-size:13px;font-weight:400}
+.stop{background:#c0392b;color:#fff;font-weight:700;width:100%;margin-top:8px}
+.chip{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:6px}
+.tabs{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #ccc;display:flex;max-width:480px;margin:0 auto}
+.tabs button{flex:1;border-radius:0;background:none;min-height:64px;font-size:15px;padding-bottom:max(8px,env(safe-area-inset-bottom))}
+.tabs button.cur{font-weight:700;border-top:3px solid #222;background:#eee}
+input,textarea,select{font:inherit;width:100%;padding:10px;border:1px solid #aaa;border-radius:10px;background:#fff}
+textarea{min-height:110px}
+.bar24{position:relative;height:34px;background:repeating-linear-gradient(45deg,#e8e8e4,#e8e8e4 6px,#f2f2ef 6px,#f2f2ef 12px);border-radius:6px;overflow:hidden}
+.bar24 i{position:absolute;top:0;bottom:0}
+.ticks{display:flex;justify-content:space-between;font-size:12px;color:#555}
+.row{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:15px}
+.row .nm{width:84px;flex:none}
+.row .tr{flex:1;background:#eee;height:16px;border-radius:4px}
+.row .tr b{display:block;height:100%;border-radius:4px}
+.row .tm{width:104px;white-space:nowrap;text-align:right;flex:none;font-variant-numeric:tabular-nums}
+.week{display:flex;gap:6px;align-items:flex-end;height:180px}
+.week .d{flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%;text-align:center;font-size:12px}
+.week .st{display:flex;flex-direction:column-reverse;border-radius:4px;overflow:hidden}
+.item{padding:8px 0;border-bottom:1px solid #eee;font-size:15px}
+.item .n{color:#555;font-size:14px}
+.warn{background:#fff3cd;border:1px solid #e0b000;border-radius:12px;padding:10px;margin:10px 0}
+.alarm{background:#c0392b;color:#fff;border-radius:12px;padding:12px;margin:10px 0;font-weight:700}
+.sm{min-height:44px;font-size:15px;padding:8px 14px}
+.flex{display:flex;gap:8px;align-items:center}
+.muted{color:#666;font-size:13px}
+</style></head><body><div id="app"></div>
+<script>
+/* ===== 計算（純粋関数）：ここから ===== */
+var COLORS=['#2b6cb0','#2f855a','#b7791f','#6b46c1','#c05621','#718096','#b83280','#0987a0'];
+function dayStart(ms){var d=new Date(ms);return new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();}
+function dayEnd(ms){var d=new Date(ms);return new Date(d.getFullYear(),d.getMonth(),d.getDate()+1).getTime();}
+function running(st){for(var i=0;i<st.entries.length;i++)if(st.entries[i].end==null)return st.entries[i];return null;}
+function uid(){return Math.random().toString(36).slice(2,9);}
+/* 押した時：動いているものがあれば止める。同じ活動なら止めるだけ。違えば切り替える */
+function pressAct(st,actId,now){
+  var r=running(st);
+  if(r){r.end=Math.max(now,r.start);st.timer=null;}
+  if(r&&r.act===actId)return st;
+  st.entries.push({id:uid(),act:actId,start:now,end:null,note:''});
+  return st;
+}
+function stopNow(st,now){var r=running(st);if(r){r.end=Math.max(now,r.start);}st.timer=null;return st;}
+/* ある日の範囲[ds,de)に切り取った長さ（動いている物は now まで） */
+function clipMs(e,ds,de,now){var s=Math.max(e.start,ds),t=Math.min(e.end==null?now:e.end,de,now);return Math.max(0,t-s);}
+function totalsForDay(entries,ds,now){var de=dayEnd(ds),o={};entries.forEach(function(e){var m=clipMs(e,ds,de,now);if(m>0)o[e.act]=(o[e.act]||0)+m;});return o;}
+function segsForDay(entries,ds,now){var de=dayEnd(ds),a=[];entries.forEach(function(e){var s=Math.max(e.start,ds),t=Math.min(e.end==null?now:e.end,de,now);if(t>s)a.push({act:e.act,s:s,t:t,id:e.id});});return a;}
+/* 直す：終わり>始まり・未来にしない・ほかの記録と重ならない */
+function validateEdit(entries,id,start,end,now){
+  if(!(start>=0)||!(end>=0))return '時刻が読めません';
+  if(end<=start)return '終わりは、始まりより後にしてください';
+  if(end>now)return '未来の時刻にはできません';
+  for(var i=0;i<entries.length;i++){var e=entries[i];if(e.id===id)continue;var s2=e.start,t2=e.end==null?now:e.end;if(start<t2&&end>s2)return 'ほかの記録と重なっています';}
+  return null;
+}
+function fmtHMS(ms){ms=Math.max(0,Math.floor(ms/1000));var h=Math.floor(ms/3600),m=Math.floor(ms%3600/60),s=ms%60;return p2(h)+':'+p2(m)+':'+p2(s);}
+function p2(n){return (n<10?'0':'')+n;}
+function fmtHM(ms){var m=Math.floor(ms/60000),h=Math.floor(m/60);return h>0?h+'時間'+p2(m%60)+'分':m+'分';}
+function csvEsc(s){s=String(s==null?'':s);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function backupText(st,now){return JSON.stringify({app:'jikan_no_kiroku',version:1,savedAt:now,data:st});}
+function parseBackup(text){var j;try{j=JSON.parse(text);}catch(e){return{ok:false,error:'ファイルが読めません'};}
+  var d=j&&j.app==='jikan_no_kiroku'?j.data:null;if(!d||!Array.isArray(d.acts)||!Array.isArray(d.entries))return{ok:false,error:'この控えの形ではありません'};
+  for(var i=0;i<d.entries.length;i++){var e=d.entries[i];if(!e||typeof e.start!=='number'||!(e.end==null||typeof e.end==='number')||typeof e.act!=='string')return{ok:false,error:'記録の中に読めない行があります'};}
+  for(var k=0;k<d.acts.length;k++){if(!d.acts[k]||typeof d.acts[k].id!=='string'||typeof d.acts[k].name!=='string')return{ok:false,error:'活動の中に読めない行があります'};}
+  return{ok:true,state:{acts:d.acts,entries:d.entries,dayNotes:d.dayNotes&&typeof d.dayNotes==='object'?d.dayNotes:{},timer:null}};}
+/* 時間が来ているか。来ていれば、何分前かを返す（画面を閉じて戻った時用） */
+function timerDue(st,now){if(!st.timer||now<st.timer.fireAt)return null;return{lateMin:Math.floor((now-st.timer.fireAt)/60000)};}
+function topN(tot,n){return Object.keys(tot).sort(function(a,b){return tot[b]-tot[a];}).slice(0,n);}
+/* ===== 計算：ここまで ===== */
+
+if(typeof document!=='undefined'){
+var demo=/[?&]demo=1/.test(location.search);
+var KEY=demo?'jikan_demo_v1':'jikan_v1';
+var DEF_ACTS=[['仕事',0],['家の事',1],['移動',2],['休み',3],['学び',4],['その他',5]].map(function(a,i){return{id:'a'+i,name:a[0],color:COLORS[a[1]]};});
+var st,tab='main',editId=null,delAsk=false,alarm=false,alarmMsg='',pendingBk=null,memoDay=null,setMsg='',csvText='';
+function load(){try{var j=JSON.parse(localStorage.getItem(KEY));if(j&&j.acts&&j.entries){j.dayNotes=j.dayNotes||{};return j;}}catch(e){}return null;}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(st));}catch(e){}}
+function makeDemo(){
+  var now=Date.now(),s={acts:JSON.parse(JSON.stringify(DEF_ACTS)),entries:[],dayNotes:{},timer:null};
+  var plan=[[6.5,7.3,'a2'],[7.3,8,'a1'],[8,12,'a0'],[12,12.7,'a3'],[12.7,17.5,'a0'],[17.5,18.3,'a2'],[18.3,19.5,'a1'],[19.5,20.3,'a4'],[20.3,21.5,'a3'],[21.5,22,'a5']];
+  for(var d=6;d>=0;d--){var ds=dayStart(now-d*86400000+(d>0?3600000:0));
+    plan.forEach(function(p,i){var sh=p[0]+((d*7+i*3)%5)*0.05,eh=p[1];var a=new Date(ds);var s0=new Date(a.getFullYear(),a.getMonth(),a.getDate(),0,Math.round(sh*60)).getTime(),e0=new Date(a.getFullYear(),a.getMonth(),a.getDate(),0,Math.round(eh*60)).getTime();
+      if(s0>=now)return;var ent={id:uid(),act:p[2],start:s0,end:e0,note:''};
+      if(p[2]==='a4')ent.note='英語の動画';if(p[2]==='a0'&&i===2)ent.note='午前の作業';
+      if(e0>=now){ent.end=null;}s.entries.push(ent);});}
+  s.dayNotes[ymd(now)]='見本のメモ：夜は早めに休む。';return s;}
+function ymd(ms){var d=new Date(ms);return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());}
+function act(id){for(var i=0;i<st.acts.length;i++)if(st.acts[i].id===id)return st.acts[i];return{id:id,name:'（消した活動）',color:'#999'};}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function hm(ms){var d=new Date(ms);return p2(d.getHours())+':'+p2(d.getMinutes());}
+function dtl(ms){var d=new Date(ms);return ymd(ms)+'T'+hm(ms);}
+
+function rowsHtml(tot){var ids=Object.keys(tot).sort(function(a,b){return tot[b]-tot[a];});if(!ids.length)return '<p class="muted">まだ記録がありません。</p>';var mx=tot[ids[0]];
+  return ids.map(function(id){var a=act(id);return '<div class="row"><span class="nm"><i class="chip" style="background:'+a.color+'"></i>'+esc(a.name)+'</span><span class="tr"><b style="width:'+Math.max(2,tot[id]/mx*100)+'%;background:'+a.color+'"></b></span><span class="tm">'+fmtHM(tot[id])+'</span></div>';}).join('');}
+
+function barHtml(segs,ds,span){return '<div class="bar24">'+segs.map(function(g){return '<i style="left:'+(g.s-ds)/span*100+'%;width:'+(g.t-g.s)/span*100+'%;background:'+act(g.act).color+'"></i>';}).join('')+'</div><div class="ticks"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div>';}
+function miniToday(now,ds,tot){var segs=segsForDay(st.entries,ds,now),ids=topN(tot,3),mx=ids.length?tot[ids[0]]:1;
+  return '<div class="card" style="margin-top:12px"><b>きょう</b>'+barHtml(segs,ds,dayEnd(ds)-ds)+(ids.length?ids.map(function(id){var a=act(id);return '<div class="row"><span class="nm"><i class="chip" style="background:'+a.color+'"></i>'+esc(a.name)+'</span><span class="tr"><b style="width:'+Math.max(2,tot[id]/mx*100)+'%;background:'+a.color+'"></b></span><span class="tm">'+fmtHM(tot[id])+'</span></div>';}).join(''):'<p class="muted">まだ記録がありません。</p>')+'</div>';}
+function vMain(now){
+  var r=running(st),h='';
+  if(alarm)h+='<div class="alarm">'+(alarmMsg||'知らせの時間です。')+'<button class="sm" data-do="ack">とじる</button></div>';
+
+  var ds=dayStart(now),tot=totalsForDay(st.entries,ds,now);
+  var GH='<div class="grid">'+st.acts.map(function(a){var on=r&&r.act===a.id,t=tot[a.id]||0;return '<button class="act'+(on?' on':'')+'" style="background:'+a.color+'" data-do="press" data-id="'+a.id+'">'+esc(a.name)+(on?' ●':'')+'<small>きょう '+fmtHM(t)+'</small></button>';}).join('')+'</div>';
+  if(r){var a=act(r.act);
+    h+='<div class="now"><div class="nm">いま：'+esc(a.name)+'</div><div class="big" id="clock">'+fmtHMS(now-r.start)+'</div><div class="muted" style="color:#ccc">'+hm(r.start)+' から</div><button class="stop" data-do="stop">止める</button></div>';
+    if(now-r.start>8*3600000)h+='<div class="warn"><b>まだ動いています。いつ終わりましたか？</b><input id="fend" type="datetime-local" value="'+dtl(now)+'" style="margin:8px 0"><div id="ferr" style="color:#c0392b"></div><button class="sm" data-do="fixend" data-id="'+r.id+'" style="background:#222;color:#fff">この時刻で止める</button> <button class="sm" data-do="edit" data-id="'+r.id+'">くわしく直す</button></div>';
+  }else h+='<div class="now"><div class="nm">いま：記録していません</div><div class="muted" style="color:#ccc">下の活動を1回押すと、記録が始まります。</div></div>';
+  h+=GH+miniToday(now,ds,tot);
+  if(r){
+    h+='<div class="card"><b>ひとこと</b><input id="enote" maxlength="80" value="'+esc(r.note)+'" placeholder="いまの記録に1行のメモ"></div>';
+    h+='<div class="card"><b>タイマー</b>'+(st.timer&&st.timer.entryId===r.id?'<p>'+hm(st.timer.fireAt)+' に知らせます（あと '+fmtHM(st.timer.fireAt-now)+'） <button class="sm" data-do="tclear">やめる</button></p>':'<p class="muted">◯分たったら知らせる</p>')+
+      '<div class="flex"><button class="sm" data-do="tset" data-m="15">15分</button><button class="sm" data-do="tset" data-m="25">25分</button><button class="sm" data-do="tset" data-m="50">50分</button></div><div class="flex" style="margin-top:8px"><input id="tmin" type="number" min="1" max="600" inputmode="numeric" placeholder="分" style="width:90px"><button class="sm" data-do="tcustom">分で知らせる</button></div></div>';
+  }
+  var sum=0;for(var k in tot)sum+=tot[k];
+  h+='<div class="card" style="margin-top:14px"><b>きょうの合計　'+fmtHM(sum)+'</b>'+rowsHtml(tot)+'</div>';return h;}
+
+function vToday(now){
+  var ds=dayStart(now),tot=totalsForDay(st.entries,ds,now),segs=segsForDay(st.entries,ds,now),span=dayEnd(ds)-ds;
+  var h='<h2>きょう　'+ymd(now)+'</h2><div class="card"><div class="bar24">'+segs.map(function(g){return '<i style="left:'+(g.s-ds)/span*100+'%;width:'+(g.t-g.s)/span*100+'%;background:'+act(g.act).color+'" title="'+esc(act(g.act).name)+'"></i>';}).join('')+'</div><div class="ticks"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div><p class="muted">しま模様の所＝記録なし</p>';
+  var rec=0;for(var k in tot)rec+=tot[k];var passed=now-ds;
+  h+=rowsHtml(tot)+'<div class="row"><span class="nm"><i class="chip" style="background:#ddd"></i>記録なし</span><span class="tr"></span><span class="tm">'+fmtHM(Math.max(0,passed-rec))+'</span></div></div>';
+  var dn=st.dayNotes[ymd(now)];if(dn)h+='<div class="card"><b>きょうのメモ</b><div>'+esc(dn).replace(/\n/g,'<br>')+'</div></div>';
+  var list=st.entries.filter(function(e){return clipMs(e,ds,dayEnd(ds),now)>0||(e.end==null&&e.start<dayEnd(ds));}).sort(function(a,b){return a.start-b.start;});
+  h+='<div class="card"><b>きょうの記録（時刻の順）</b>'+(list.length?list.map(function(e){var a=act(e.act);return '<div class="item"><i class="chip" style="background:'+a.color+'"></i><b>'+esc(a.name)+'</b>　'+hm(e.start)+'〜'+(e.end==null?'いま':hm(e.end))+'　'+fmtHM((e.end==null?now:e.end)-e.start)+(e.note?'<div class="n">メモ：'+esc(e.note)+'</div>':'')+' <button class="sm" data-do="edit" data-id="'+e.id+'">直す</button></div>';}).join(''):'<p class="muted">まだありません。</p>')+'</div>';
+  return h;}
+
+function vWeek(now){
+  var days=[],mx=3600000,all={};
+  for(var i=6;i>=0;i--){var ds=dayStart(dayStart(now)-i*86400000+43200000);var t=totalsForDay(st.entries,ds,now),s=0;for(var k in t){s+=t[k];all[k]=(all[k]||0)+t[k];}mx=Math.max(mx,s);days.push({ds:ds,t:t,s:s});}
+  var h='<h2>この7日間</h2><div class="card"><div class="week">'+days.map(function(d){var segs=st.acts.map(function(a){var v=d.t[a.id]||0;return v?'<div style="height:'+(v/mx*130)+'px;background:'+a.color+'" title="'+esc(a.name)+'"></div>':'';}).join('');
+    var w=['日','月','火','水','木','金','土'][new Date(d.ds).getDay()];return '<div class="d"><div>'+(d.s?Math.round(d.s/360000)/10+'h':'-')+'</div><div class="st">'+segs+'</div><div>'+w+'</div></div>';}).join('')+'</div></div>';
+  var sum=0;for(var k2 in all)sum+=all[k2];
+  h+='<div class="card"><b>7日の合計　'+fmtHM(sum)+'</b>'+rowsHtml(all)+'</div>';return h;}
+
+function vMemo(now){
+  if(!memoDay)memoDay=dayStart(now);var key=ymd(memoDay);
+  return '<h2>日ごとのメモ</h2><div class="card"><div class="flex"><button class="sm" data-do="mprev">◀</button><b style="flex:1;text-align:center">'+key+(memoDay===dayStart(now)?'（きょう）':'')+'</b><button class="sm" data-do="mnext">▶</button></div><textarea id="dmemo" placeholder="この日の自由なメモ">'+esc(st.dayNotes[key]||'')+'</textarea><p class="muted">入力した字は、この端末の中に自動で残ります。</p></div>'+
+   '<div class="card"><b>この日の記録のメモ</b>'+(function(){var l=st.entries.filter(function(e){return e.note&&e.start>=memoDay&&e.start<dayEnd(memoDay);}).sort(function(a,b){return a.start-b.start;});return l.length?l.map(function(e){return '<div class="item">'+hm(e.start)+' '+esc(act(e.act).name)+'<div class="n">'+esc(e.note)+'</div></div>';}).join(''):'<p class="muted">ありません。</p>';})()+'</div>';}
+
+function vSet(now){
+  var h='<h2>設定</h2><div class="card"><b>活動の名前と色</b>'+st.acts.map(function(a){return '<div class="flex" style="margin:6px 0"><input type="color" data-col="'+a.id+'" value="'+a.color+'" style="width:56px;padding:2px;height:44px"><input data-nm="'+a.id+'" maxlength="8" value="'+esc(a.name)+'"></div>';}).join('')+
+   (st.acts.length<8?'<button data-do="addact">活動を足す</button>':'<p class="muted">8つまでです。</p>')+'</div>';
+  h+='<div class="card"><b>書き出し（CSV）</b><div class="flex" style="margin-top:6px"><button class="sm" data-do="csv1">きょう</button><button class="sm" data-do="csv2">全部</button></div>'+(csvText?'<textarea id="csvbox" readonly>'+esc(csvText)+'</textarea><div class="flex" style="margin-top:6px"><button class="sm" data-do="csvfile">ファイルで保存</button><button class="sm" data-do="csvcopy">写す</button></div>':'')+'<p class="muted">'+esc(setMsg)+'</p></div>';
+  h+='<div class="card"><b>控え（消えない為に）</b><p class="muted">全部を1つのファイルにします。週に1度くらい書き出してください。</p><div class="flex"><button class="sm" data-do="bk">控えを書き出す</button><button class="sm" data-do="bkpick">控えから戻す</button></div><input id="bkfile" type="file" accept=".json,application/json" style="display:none">'+(pendingBk?'<div class="warn"><b>いまの記録を、この控えで置き換えます。よいですか？</b><br><button class="sm" data-do="bkgo" style="background:#c0392b;color:#fff">置き換える</button> <button class="sm" data-do="bkno">やめる</button></div>':'')+'</div>';
+  h+='<div class="card muted">記録はこの端末の中だけに残ります。外には送りません。'+(demo?'<br>いまは見本のデータです（本物の記録は別に持っています）。':'')+'</div>';return h;}
+
+function vEdit(now){
+  var e=null;st.entries.forEach(function(x){if(x.id===editId)e=x;});if(!e){editId=null;return '';}
+  var end=e.end==null?now:e.end;
+  return '<h2>記録を直す</h2><div class="card"><div>'+esc(act(e.act).name)+'</div><label>活動<select id="eact">'+st.acts.map(function(a){return '<option value="'+a.id+'"'+(a.id===e.act?' selected':'')+'>'+esc(a.name)+'</option>';}).join('')+'</select></label>'+
+   '<label>始まり<input id="est" type="datetime-local" value="'+dtl(e.start)+'"></label><label>終わり'+(e.end==null?'（動いています。直すと止まります）':'')+'<input id="een" type="datetime-local" value="'+dtl(end)+'"></label><label>メモ<input id="eno" maxlength="80" value="'+esc(e.note)+'"></label><p id="eerr" style="color:#c0392b"></p>'+
+   '<div class="flex"><button data-do="esave" style="flex:1;background:#222;color:#fff">保存</button><button data-do="ecancel" style="flex:1">もどる</button></div><div style="margin-top:12px">'+(delAsk?'<b>本当に消しますか？</b> <button class="sm" data-do="edel" style="background:#c0392b;color:#fff">消す</button> <button class="sm" data-do="edelno">やめる</button>':'<button class="sm" data-do="edelask">この記録を消す</button>')+'</div></div>';}
+
+function render(){
+  var now=Date.now(),a=document.getElementById('app');
+  var body=editId?vEdit(now):(tab==='main'?vMain(now):tab==='today'?vToday(now):tab==='week'?vWeek(now):tab==='memo'?vMemo(now):vSet(now));
+  var tabs=[['main','記録'],['today','きょう'],['week','週'],['memo','メモ'],['set','設定']];
+  a.innerHTML=body+'<div class="tabs">'+tabs.map(function(t){return '<button data-do="tab" data-id="'+t[0]+'" class="'+(tab===t[0]&&!editId?'cur':'')+'">'+t[1]+'</button>';}).join('')+'</div>';}
+
+function download(name,text,type){try{var b=new Blob([text],{type:type+';charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(u);},2000);}catch(e){setMsg='保存できませんでした。';}}
+document.addEventListener('change',function(ev){var t=ev.target;if(t.id==='bkfile'&&t.files&&t.files[0]){var rd=new FileReader();rd.onload=function(){var pr=parseBackup(String(rd.result));if(pr.ok){pendingBk=String(rd.result);setMsg='';}else{pendingBk=null;setMsg=pr.error;}render();};rd.readAsText(t.files[0]);}});
+function notify(msg){try{if('Notification' in window&&Notification.permission==='granted'){if(navigator.serviceWorker&&navigator.serviceWorker.ready){navigator.serviceWorker.ready.then(function(reg){reg.showNotification('時間の記録',{body:msg,tag:'jikan'});}).catch(function(){new Notification('時間の記録',{body:msg});});}else new Notification('時間の記録',{body:msg});}}catch(e){}}
+function beep(){try{var c=new (window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator();o.connect(c.destination);o.frequency.value=880;o.start();setTimeout(function(){o.stop();},600);}catch(e){}}
+function csvFor(from,to,now){var rows=['日付,開始,終了,活動,分,メモ'];st.entries.slice().sort(function(a,b){return a.start-b.start;}).forEach(function(e){if(e.start<from||e.start>=to)return;var en=e.end==null?now:e.end;rows.push([ymd(e.start),hm(e.start),e.end==null?'':hm(e.end),act(e.act).name,Math.round((en-e.start)/60000),e.note].map(csvEsc).join(','));});return rows.join('\n');}
+function setTimer(m){var r=running(st);if(!r||!(m>=1))return;st.timer={entryId:r.id,fireAt:Date.now()+m*60000};save();try{if('Notification' in window&&Notification.permission==='default')Notification.requestPermission();}catch(e){}render();}
+
+document.addEventListener('click',function(ev){
+  var b=ev.target.closest('[data-do]');if(!b)return;var d=b.dataset.do,id=b.dataset.id,now=Date.now();
+  if(d==='tab'){tab=id;editId=null;delAsk=false;}
+  else if(d==='press'){pressAct(st,id,now);save();}
+  else if(d==='stop'){stopNow(st,now);save();}
+  else if(d==='ack'){alarm=false;alarmMsg='';}
+  else if(d==='fixend'){var rr=running(st),en2=new Date(document.getElementById('fend').value).getTime(),er2=rr?validateEdit(st.entries,rr.id,rr.start,en2,now):'';if(er2){document.getElementById('ferr').textContent=er2;return;}if(rr){rr.end=en2;st.timer=null;save();}}
+  else if(d==='bk'){download('jikan_kiroku_hikae_'+ymd(now)+'.json',backupText(st,now),'application/json');setMsg='控えを書き出しました。';}
+  else if(d==='csvfile'){download('jikan_kiroku_'+ymd(now)+'.csv','\ufeff'+csvText,'text/csv');setMsg='ファイルにしました。';}
+  else if(d==='bkpick'){document.getElementById('bkfile').click();return;}
+  else if(d==='bkgo'){var pr=parseBackup(pendingBk);if(pr.ok){st=pr.state;save();setMsg='控えから戻しました。';}else setMsg=pr.error;pendingBk=null;}
+  else if(d==='bkno'){pendingBk=null;setMsg='';}
+  else if(d==='tset'){setTimer(+b.dataset.m);return;}
+  else if(d==='tcustom'){var v=parseInt(document.getElementById('tmin').value,10);if(v>=1&&v<=600){setTimer(v);return;}}
+  else if(d==='tclear'){st.timer=null;save();}
+  else if(d==='edit'){editId=id;delAsk=false;}
+  else if(d==='ecancel'){editId=null;delAsk=false;}
+  else if(d==='edelask'){delAsk=true;}else if(d==='edelno'){delAsk=false;}
+  else if(d==='edel'){st.entries=st.entries.filter(function(e){return e.id!==editId;});if(st.timer&&st.timer.entryId===editId)st.timer=null;editId=null;delAsk=false;save();}
+  else if(d==='esave'){var e=null;st.entries.forEach(function(x){if(x.id===editId)e=x;});var s=new Date(document.getElementById('est').value).getTime(),en=new Date(document.getElementById('een').value).getTime();
+    var er=validateEdit(st.entries,editId,s,en,now);if(er){document.getElementById('eerr').textContent=er;return;}
+    e.start=s;e.end=en;e.act=document.getElementById('eact').value;e.note=document.getElementById('eno').value;if(st.timer&&st.timer.entryId===e.id)st.timer=null;editId=null;save();}
+  else if(d==='mprev'){memoDay=dayStart(memoDay-43200000);}else if(d==='mnext'){if(dayEnd(memoDay)<=now)memoDay=dayEnd(memoDay);}
+  else if(d==='addact'){st.acts.push({id:'a'+uid(),name:'新しい活動',color:COLORS[st.acts.length%COLORS.length]});save();}
+  else if(d==='csv1'||d==='csv2'){csvText=d==='csv1'?csvFor(dayStart(now),dayEnd(now),now):csvFor(0,Infinity,now);setMsg='';}
+  else if(d==='csvcopy'){var t=document.getElementById('csvbox');t.select();var ok=false;try{ok=document.execCommand('copy');}catch(e){}if(!ok&&navigator.clipboard)navigator.clipboard.writeText(csvText);setMsg='写しました（うまくいかない時は、枠の字を選んで写してください）。';}
+  render();});
+document.addEventListener('input',function(ev){var t=ev.target;
+  if(t.id==='enote'){var r=running(st);if(r){r.note=t.value;save();}}
+  else if(t.id==='dmemo'){var k=ymd(memoDay);if(t.value)st.dayNotes[k]=t.value;else delete st.dayNotes[k];save();}
+  else if(t.dataset.nm){st.acts.forEach(function(a){if(a.id===t.dataset.nm)a.name=t.value||'名前なし';});save();}
+  else if(t.dataset.col){st.acts.forEach(function(a){if(a.id===t.dataset.col)a.color=t.value;});save();}});
+
+var tq=location.search.match(/[?&]tab=(main|today|week|memo|set)/);if(tq)tab=tq[1];
+st=load();if(!st){st=demo?makeDemo():{acts:JSON.parse(JSON.stringify(DEF_ACTS)),entries:[],dayNotes:{},timer:null};save();}
+render();
+function checkDue(){var now=Date.now(),du=timerDue(st,now);if(!du)return;st.timer=null;alarm=true;alarmMsg=du.lateMin>=1?du.lateMin+'分前に時間が来ていました。':'知らせの時間です。';save();if(du.lateMin<1)beep();notify(alarmMsg);render();}
+checkDue();
+setInterval(function(){var now=Date.now(),c=document.getElementById('clock'),r=running(st);
+  if(c&&r)c.textContent=fmtHMS(now-r.start);
+  checkDue();},1000);
+document.addEventListener('visibilitychange',function(){if(!document.hidden)checkDue();});
+}
+if(typeof module!=='undefined')module.exports={dayStart:dayStart,dayEnd:dayEnd,pressAct:pressAct,stopNow:stopNow,totalsForDay:totalsForDay,validateEdit:validateEdit,running:running,fmtHM:fmtHM,fmtHMS:fmtHMS,csvEsc:csvEsc,backupText:backupText,parseBackup:parseBackup,timerDue:timerDue,topN:topN};
+if(typeof navigator!=='undefined'&&navigator.serviceWorker&&/^https?:/.test(location.protocol)){navigator.serviceWorker.register('sw.js').catch(function(){});}
+</script></body></html>
