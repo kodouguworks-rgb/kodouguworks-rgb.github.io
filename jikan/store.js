@@ -97,6 +97,7 @@
         var end = isNum(l.end) ? l.end : null;
         if (end !== null && end < l.start) return;
         if (l.start < T_MIN || l.start > tMax || (end !== null && end > tMax)) return;
+        if (end !== null && end - l.start < MIN) return;   /* 閉じていて60秒未満は、記録に残さない（計測中は残す） */
         var id = sid(l.id);
         if (seen[id]) id = uid();
         seen[id] = 1;
@@ -155,6 +156,7 @@
     });
     (Array.isArray(v3.entries) ? v3.entries : []).forEach(function (e) {
       if (!isObj(e)) return;
+      if (isNum(e.start) && isNum(e.end) && e.end - e.start < MIN) return;   /* 前の版の1分未満の記録は、引き継がない（old にも入れない） */
       var p = parseInt(e.planned, 10), focus = p >= 1 && p <= 240;
       o.logs.push({ id: e.id, item: e.kind, start: e.start, end: e.end == null ? null : e.end, mode: focus ? 'focus' : 'free', plan: focus ? p : null, memo: memos[sid(e.id)] || '' });
     });
